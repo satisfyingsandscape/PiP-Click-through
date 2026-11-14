@@ -1,0 +1,55 @@
+name: Build portable Windows app
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Windows x64 portable package
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Publish self-contained executable
+        shell: pwsh
+        run: |
+          dotnet publish .\PiPClickThrough\PiPClickThrough.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:EnableCompressionInSingleFile=true `
+            -p:DebugType=none `
+            -p:DebugSymbols=false `
+            -o .\publish
+
+      - name: Add README to portable package
+        shell: pwsh
+        run: Copy-Item .\README.md .\publish\README.md
+
+      - name: Create portable ZIP
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force .\dist | Out-Null
+          Compress-Archive -Path .\publish\* -DestinationPath .\dist\PiPClickThrough-win-x64.zip -CompressionLevel Optimal
+
+      - name: Upload portable ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: PiPClickThrough-win-x64
+          path: .\dist\PiPClickThrough-win-x64.zip
+          if-no-files-found: error
+          retention-days: 30
