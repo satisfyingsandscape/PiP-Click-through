@@ -87,6 +87,12 @@ GitHub Actions builds the self-contained Windows x64 executable on every push to
 
 Open the repository's **Actions** tab, select the latest successful **Build portable Windows app** run, and download the `PiPClickThrough-win-x64` artifact.
 
+## Credits and contact
+
+This project was developed with assistance from **ChatGPT (GPT-6)**, an AI model by OpenAI.
+
+For questions or feedback, contact the project owner on Discord: **`@ozo_tls`**.
+
 ## License
 
-No license has been specified yet. All rights are reserved by default unless the repository owner adds a license.
+No open-source license has been specified yet. All rights are reserved by default. If you want to reuse, modify, or redistribute this project, please contact the project owner first.
