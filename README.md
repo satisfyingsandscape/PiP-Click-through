@@ -46,7 +46,9 @@ The global shortcut may be unavailable if another application is already using i
 
 ## Build from source
 
-### Requirements
+The .NET SDK is **not required to run the downloaded executable**. The following tools are needed only if you want to compile the application yourself.
+
+### Developer requirements
 
 - Windows 10/11
 - .NET 8 SDK
@@ -81,11 +83,11 @@ The published executable is self-contained and single-file. The .NET 8 SDK is ne
 └── README.md
 ```
 
-## Continuous integration
+## Continuous integration and releases
 
-GitHub Actions builds the self-contained Windows x64 executable on every push to the default branch and on manual workflow runs. The resulting portable ZIP is uploaded as a workflow artifact.
+GitHub Actions builds the self-contained Windows x64 executable on every push to the `main` branch and on version-tag pushes (`v*`). It creates a ZIP containing the executable and this README, uploads it as a workflow artifact, and publishes the ZIP to the GitHub Release configured by the workflow.
 
-Open the repository's **Actions** tab, select the latest successful **Build portable Windows app** run, and download the `PiPClickThrough-win-x64` artifact.
+For the public download, use the repository's **Releases** page. The **Actions** artifact is a temporary build artifact retained for 30 days.
 
 ## Credits and contact
 
