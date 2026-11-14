@@ -4,7 +4,7 @@ A lightweight Windows system-tray utility that makes Opera's Picture-in-Picture 
 
 ## Download and run
 
-1. Download the latest **PiPClickThrough-win-x64.zip** package from the repository's **Actions** tab.
+1. Open the repository's **Releases** page and download `PiPClickThrough-win-x64.zip` from the latest release. The ZIP is also available as a temporary artifact in the **Actions** tab.
 2. Extract the ZIP file to a folder.
 3. Run `PiPClickThrough.exe`.
 
