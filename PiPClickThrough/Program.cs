@@ -18,6 +18,8 @@ internal static class Program
 
 internal sealed class TrayApp : IDisposable
 {
+    private readonly Stream _iconStream;
+    private readonly Icon _appIcon;
     private readonly NotifyIcon _tray;
     private readonly ContextMenuStrip _menu;
     private readonly ToolStripMenuItem _status;
@@ -59,9 +61,13 @@ internal sealed class TrayApp : IDisposable
         _menu.Items.Add(new ToolStripSeparator());
         _menu.Items.Add(exit);
 
+        _iconStream = typeof(TrayApp).Assembly.GetManifestResourceStream("PiPClickThrough.app.ico")
+            ?? throw new InvalidOperationException("The application icon resource is missing.");
+        _appIcon = new Icon(_iconStream);
+
         _tray = new NotifyIcon
         {
-            Icon = SystemIcons.Application,
+            Icon = _appIcon,
             Text = "PiP Click-through",
             ContextMenuStrip = _menu,
             Visible = true
@@ -274,6 +280,8 @@ internal sealed class TrayApp : IDisposable
         _hotkey.Dispose();
         _tray.Visible = false;
         _tray.Dispose();
+        _appIcon.Dispose();
+        _iconStream.Dispose();
         _menu.Dispose();
     }
 }
