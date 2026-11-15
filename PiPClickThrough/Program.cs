@@ -91,6 +91,7 @@ internal sealed class TrayApp : IDisposable
         _status = new ToolStripMenuItem("Status: waiting for a PiP window") { Enabled = false };
         _toggle = new ToolStripMenuItem("Enable click-through (Ctrl + Alt + P)", null, (_, _) => Toggle());
         var detect = new ToolStripMenuItem("Find PiP window", null, (_, _) => DetectAndReport());
+        var firefoxDiagnostics = new ToolStripMenuItem("Copy Firefox window diagnostics", null, (_, _) => CopyFirefoxDiagnostics());
         var restore = new ToolStripMenuItem("Restore mouse input", null, (_, _) => DisableClickThrough());
         _startup = new ToolStripMenuItem("Start with Windows", null, (_, _) => ToggleStartup())
         {
@@ -105,6 +106,7 @@ internal sealed class TrayApp : IDisposable
         _menu.Items.Add(_toggle);
         _menu.Items.Add(restore);
         _menu.Items.Add(detect);
+        _menu.Items.Add(firefoxDiagnostics);
         _menu.Items.Add(new ToolStripSeparator());
         _menu.Items.Add(_startup);
         _menu.Items.Add(new ToolStripSeparator());
@@ -235,9 +237,61 @@ internal sealed class TrayApp : IDisposable
         UpdateMenu();
     }
 
+    private void CopyFirefoxDiagnostics()
+    {
+        var lines = new List<string> { "PiP Click-through - Firefox window diagnostics", "" };
+        int count = 0;
+
+        Native.EnumWindows((hwnd, _) =>
+        {
+            Native.GetWindowThreadProcessId(hwnd, out uint pid);
+            string processName;
+            try
+            {
+                using var process = Process.GetProcessById((int)pid);
+                processName = process.ProcessName;
+            }
+            catch { return true; }
+
+            if (!processName.Equals("firefox", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            Native.GetWindowRect(hwnd, out var rect);
+            int width = rect.Right - rect.Left;
+            int height = rect.Bottom - rect.Top;
+            long exStyle = Native.GetWindowLongPtr(hwnd, Native.GWL_EXSTYLE).ToInt64();
+            bool topmost = (exStyle & Native.WS_EX_TOPMOST) != 0;
+            IntPtr owner = Native.GetWindow(hwnd, Native.GW_OWNER);
+            string className = Native.GetWindowClassName(hwnd);
+            string title = Native.GetWindowTitle(hwnd);
+
+            lines.Add("HWND: 0x" + hwnd.ToInt64().ToString("X") + " | Visible: " + Native.IsWindowVisible(hwnd));
+            lines.Add("Class: " + className + " | Size: " + width + "x" + height + " | Topmost: " + topmost + " | Owner: 0x" + owner.ToInt64().ToString("X"));
+            lines.Add("ExStyle: 0x" + exStyle.ToString("X") + " | Title: " + title);
+            lines.Add("");
+            count++;
+            return true;
+        }, IntPtr.Zero);
+
+        if (count == 0)
+            lines.Add("No Firefox windows were found. Make sure Firefox and its PiP window are open.");
+
+        string report = string.Join(Environment.NewLine, lines);
+        try
+        {
+            Clipboard.SetText(report);
+            MessageBox.Show("Diagnostics copied to the clipboard (" + count + " Firefox window(s)). Paste them into the chat.",
+                "Firefox diagnostics", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch
+        {
+            MessageBox.Show(report, "Firefox diagnostics", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+    }
+
     private static IntPtr FindBrowserPipWindow()
     {
-        var candidates = new List<(IntPtr Hwnd, int Area, string Title)>();
+        var candidates = new List<(IntPtr Hwnd, int Area, string Title, int Priority)>();
         Native.EnumWindows((hwnd, _) =>
         {
             if (!Native.IsWindowVisible(hwnd)) return true;
@@ -260,7 +314,7 @@ internal sealed class TrayApp : IDisposable
             if (!Native.GetWindowRect(hwnd, out var rect)) return true;
             int width = rect.Right - rect.Left;
             int height = rect.Bottom - rect.Top;
-            if (width < 100 || height < 60 || width > 1800 || height > 1100) return true;
+            if (width < 80 || height < 50) return true;
 
             if (isChromeBased)
             {
@@ -284,21 +338,31 @@ internal sealed class TrayApp : IDisposable
                 // Unlike Chromium, it does not consistently expose WS_POPUP on Windows.
                 long firefoxExStyle = Native.GetWindowLongPtr(hwnd, Native.GWL_EXSTYLE).ToInt64();
                 string firefoxClass = Native.GetWindowClassName(hwnd);
-                if ((firefoxExStyle & Native.WS_EX_TOPMOST) == 0 ||
-                    !firefoxClass.Equals("MozillaWindowClass", StringComparison.Ordinal))
+                bool isTopmost = (firefoxExStyle & Native.WS_EX_TOPMOST) != 0;
+                bool hasOwner = Native.GetWindow(hwnd, Native.GW_OWNER) != IntPtr.Zero;
+
+                // Firefox's PiP is a separate owned browser window. Windows versions
+                // and Firefox builds may differ in whether TOPMOST is exposed through
+                // the extended style, so accept an owned Mozilla window as a fallback.
+                if (!firefoxClass.Equals("MozillaWindowClass", StringComparison.Ordinal) ||
+                    (!isTopmost && !hasOwner))
                     return true;
 
+                if (width > 3000 || height > 2000) return true;
                 double ratio = (double)width / height;
-                if (ratio < 1.1 || ratio > 2.8) return true;
+                if (ratio < 0.65 || ratio > 4.0) return true;
             }
 
             string title = Native.GetWindowTitle(hwnd);
-            candidates.Add((hwnd, width * height, title));
+            int priority = isFirefox
+                ? (((Native.GetWindowLongPtr(hwnd, Native.GWL_EXSTYLE).ToInt64() & Native.WS_EX_TOPMOST) != 0) ? 0 : 2)
+                : 0;
+            candidates.Add((hwnd, width * height, title, priority));
             return true;
         }, IntPtr.Zero);
 
         // Prefer the smallest matching video window to avoid selecting the browser itself.
-        return candidates.OrderBy(c => c.Area).Select(c => c.Hwnd).FirstOrDefault();
+        return candidates.OrderBy(c => c.Priority).ThenBy(c => c.Area).Select(c => c.Hwnd).FirstOrDefault();
     }
 
     private void ToggleStartup()
