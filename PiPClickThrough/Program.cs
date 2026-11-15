@@ -91,7 +91,6 @@ internal sealed class TrayApp : IDisposable
         _status = new ToolStripMenuItem("Status: waiting for a PiP window") { Enabled = false };
         _toggle = new ToolStripMenuItem("Enable click-through (Ctrl + Alt + P)", null, (_, _) => Toggle());
         var detect = new ToolStripMenuItem("Find PiP window", null, (_, _) => DetectAndReport());
-        var firefoxDiagnostics = new ToolStripMenuItem("Copy Firefox window diagnostics", null, (_, _) => CopyFirefoxDiagnostics());
         var restore = new ToolStripMenuItem("Restore mouse input", null, (_, _) => DisableClickThrough());
         _startup = new ToolStripMenuItem("Start with Windows", null, (_, _) => ToggleStartup())
         {
@@ -106,10 +105,10 @@ internal sealed class TrayApp : IDisposable
         _menu.Items.Add(_toggle);
         _menu.Items.Add(restore);
         _menu.Items.Add(detect);
-        _menu.Items.Add(firefoxDiagnostics);
         _menu.Items.Add(new ToolStripSeparator());
         _menu.Items.Add(_startup);
         _menu.Items.Add(new ToolStripSeparator());
+        _menu.Items.Add(new ToolStripMenuItem("Restart", null, (_, _) => Restart()));
         _menu.Items.Add(exit);
 
         _iconStream = typeof(TrayApp).Assembly.GetManifestResourceStream("PiPClickThrough.app.ico")
@@ -237,58 +236,6 @@ internal sealed class TrayApp : IDisposable
         UpdateMenu();
     }
 
-    private void CopyFirefoxDiagnostics()
-    {
-        var lines = new List<string> { "PiP Click-through - Firefox window diagnostics", "" };
-        int count = 0;
-
-        Native.EnumWindows((hwnd, _) =>
-        {
-            Native.GetWindowThreadProcessId(hwnd, out uint pid);
-            string processName;
-            try
-            {
-                using var process = Process.GetProcessById((int)pid);
-                processName = process.ProcessName;
-            }
-            catch { return true; }
-
-            if (!processName.Equals("firefox", StringComparison.OrdinalIgnoreCase))
-                return true;
-
-            Native.GetWindowRect(hwnd, out var rect);
-            int width = rect.Right - rect.Left;
-            int height = rect.Bottom - rect.Top;
-            long exStyle = Native.GetWindowLongPtr(hwnd, Native.GWL_EXSTYLE).ToInt64();
-            bool topmost = (exStyle & Native.WS_EX_TOPMOST) != 0;
-            IntPtr owner = Native.GetWindow(hwnd, Native.GW_OWNER);
-            string className = Native.GetWindowClassName(hwnd);
-            string title = Native.GetWindowTitle(hwnd);
-
-            lines.Add("HWND: 0x" + hwnd.ToInt64().ToString("X") + " | Visible: " + Native.IsWindowVisible(hwnd));
-            lines.Add("Class: " + className + " | Size: " + width + "x" + height + " | Topmost: " + topmost + " | Owner: 0x" + owner.ToInt64().ToString("X"));
-            lines.Add("ExStyle: 0x" + exStyle.ToString("X") + " | Title: " + title);
-            lines.Add("");
-            count++;
-            return true;
-        }, IntPtr.Zero);
-
-        if (count == 0)
-            lines.Add("No Firefox windows were found. Make sure Firefox and its PiP window are open.");
-
-        string report = string.Join(Environment.NewLine, lines);
-        try
-        {
-            Clipboard.SetText(report);
-            MessageBox.Show("Diagnostics copied to the clipboard (" + count + " Firefox window(s)). Paste them into the chat.",
-                "Firefox diagnostics", MessageBoxButtons.OK, MessageBoxIcon.Information);
-        }
-        catch
-        {
-            MessageBox.Show(report, "Firefox diagnostics", MessageBoxButtons.OK, MessageBoxIcon.Information);
-        }
-    }
-
     private static IntPtr FindBrowserPipWindow()
     {
         var candidates = new List<(IntPtr Hwnd, int Area, string Title, int Priority)>();
@@ -407,6 +354,23 @@ internal sealed class TrayApp : IDisposable
             : "Enable click-through (Ctrl + Alt + P)";
         _startup.Checked = IsStartupEnabled();
         _tray.Text = _clickThrough ? "PiP Click-through — enabled" : "PiP Click-through";
+    }
+
+    private void Restart()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(Application.ExecutablePath)
+            {
+                UseShellExecute = true
+            });
+            Application.Exit();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "Could not restart PiP Click-through",
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
     }
 
     private void Exit()
