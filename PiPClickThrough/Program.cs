@@ -11,8 +11,57 @@ internal static class Program
     private static void Main()
     {
         ApplicationConfiguration.Initialize();
+        StartMenuShortcut.Ensure();
         using var app = new TrayApp();
         Application.Run();
+    }
+}
+
+internal static class StartMenuShortcut
+{
+    public static void Ensure()
+    {
+        try
+        {
+            string executable = Application.ExecutablePath;
+            string programsFolder = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.StartMenu), "Programs");
+            string shortcutPath = Path.Combine(programsFolder, "PiP Click-through.lnk");
+
+            Directory.CreateDirectory(programsFolder);
+
+            // WScript.Shell is built into Windows; no installer or extra dependency is needed.
+            var shellType = Type.GetTypeFromProgID("WScript.Shell");
+            if (shellType is null) return;
+
+            object? shell = null;
+            object? shortcut = null;
+            try
+            {
+                shell = Activator.CreateInstance(shellType);
+                if (shell is null) return;
+
+                dynamic shellObject = shell;
+                shortcut = shellObject.CreateShortcut(shortcutPath);
+                dynamic shortcutObject = shortcut;
+                shortcutObject.TargetPath = executable;
+                shortcutObject.WorkingDirectory = Path.GetDirectoryName(executable) ?? AppContext.BaseDirectory;
+                shortcutObject.Description = "Make browser Picture-in-Picture windows click-through";
+                shortcutObject.IconLocation = executable + ",0";
+                shortcutObject.Save();
+            }
+            finally
+            {
+                if (shortcut is not null && Marshal.IsComObject(shortcut))
+                    Marshal.FinalReleaseComObject(shortcut);
+                if (shell is not null && Marshal.IsComObject(shell))
+                    Marshal.FinalReleaseComObject(shell);
+            }
+        }
+        catch
+        {
+            // Shortcut creation is best-effort; never prevent the tray app from starting.
+        }
     }
 }
 
@@ -231,13 +280,16 @@ internal sealed class TrayApp : IDisposable
             }
             else
             {
-                // Firefox uses a separate popup window; keep its popup/shape heuristic.
-                long style = Native.GetWindowLongPtr(hwnd, Native.GWL_STYLE).ToInt64();
-                if ((style & Native.WS_POPUP) == 0 || (style & Native.WS_CHILD) != 0)
+                // Firefox PiP is a dedicated, always-on-top browser window.
+                // Unlike Chromium, it does not consistently expose WS_POPUP on Windows.
+                long firefoxExStyle = Native.GetWindowLongPtr(hwnd, Native.GWL_EXSTYLE).ToInt64();
+                string firefoxClass = Native.GetWindowClassName(hwnd);
+                if ((firefoxExStyle & Native.WS_EX_TOPMOST) == 0 ||
+                    !firefoxClass.Equals("MozillaWindowClass", StringComparison.Ordinal))
                     return true;
 
                 double ratio = (double)width / height;
-                if (ratio < 1.15 || ratio > 2.6) return true;
+                if (ratio < 1.1 || ratio > 2.8) return true;
             }
 
             string title = Native.GetWindowTitle(hwnd);
