@@ -98,7 +98,7 @@ internal sealed class TrayApp : IDisposable
         }
 
         if (!Native.IsWindow(_target))
-            _target = FindOperaPipWindow();
+            _target = FindBrowserPipWindow();
 
         if (_target == IntPtr.Zero)
         {
@@ -170,7 +170,7 @@ internal sealed class TrayApp : IDisposable
 
     private void DetectAndReport()
     {
-        _target = FindOperaPipWindow();
+        _target = FindBrowserPipWindow();
         if (_target == IntPtr.Zero)
         {
             _tray.ShowBalloonTip(3000, "No PiP window detected",
@@ -186,45 +186,66 @@ internal sealed class TrayApp : IDisposable
         UpdateMenu();
     }
 
-    private static IntPtr FindOperaPipWindow()
+    private static IntPtr FindBrowserPipWindow()
     {
         var candidates = new List<(IntPtr Hwnd, int Area, string Title)>();
         Native.EnumWindows((hwnd, _) =>
         {
             if (!Native.IsWindowVisible(hwnd)) return true;
+
             Native.GetWindowThreadProcessId(hwnd, out uint pid);
+            string processName;
             try
             {
                 using var process = Process.GetProcessById((int)pid);
-                string name = process.ProcessName;
-                // The top-level PiP window belongs to the browser process in these browsers.
-                // Keep this list explicit so unrelated applications are never targeted.
-                if (!name.Equals("opera", StringComparison.OrdinalIgnoreCase) &&
-                    !name.Equals("opera_gx", StringComparison.OrdinalIgnoreCase) &&
-                    !name.Equals("chrome", StringComparison.OrdinalIgnoreCase) &&
-                    !name.Equals("firefox", StringComparison.OrdinalIgnoreCase))
-                    return true;
+                processName = process.ProcessName;
             }
             catch { return true; }
 
-            Native.GetWindowRect(hwnd, out var rect);
+            bool isChromeBased = processName.Equals("chrome", StringComparison.OrdinalIgnoreCase) ||
+                                 processName.Equals("opera", StringComparison.OrdinalIgnoreCase) ||
+                                 processName.Equals("opera_gx", StringComparison.OrdinalIgnoreCase);
+            bool isFirefox = processName.Equals("firefox", StringComparison.OrdinalIgnoreCase);
+            if (!isChromeBased && !isFirefox) return true;
+
+            if (!Native.GetWindowRect(hwnd, out var rect)) return true;
             int width = rect.Right - rect.Left;
             int height = rect.Bottom - rect.Top;
-            if (width < 220 || height < 120 || width > 1800 || height > 1100) return true;
+            if (width < 100 || height < 60 || width > 1800 || height > 1100) return true;
 
-            long style = Native.GetWindowLongPtr(hwnd, Native.GWL_STYLE).ToInt64();
-            // Browser PiP windows are popup windows; the main browser window is normally overlapped.
-            if ((style & Native.WS_POPUP) == 0 || (style & Native.WS_CHILD) != 0) return true;
+            if (isChromeBased)
+            {
+                // Chromium PiP uses a dedicated Chrome_WidgetWin_1 top-level window.
+                // It is topmost, has no owner, and is much smaller than the screen.
+                string className = Native.GetWindowClassName(hwnd);
+                long exStyle = Native.GetWindowLongPtr(hwnd, Native.GWL_EXSTYLE).ToInt64();
+                int screenWidth = Native.GetSystemMetrics(Native.SM_CXSCREEN);
+                int screenHeight = Native.GetSystemMetrics(Native.SM_CYSCREEN);
+
+                if (!className.Equals("Chrome_WidgetWin_1", StringComparison.Ordinal) ||
+                    (exStyle & Native.WS_EX_TOPMOST) == 0 ||
+                    Native.GetWindow(hwnd, Native.GW_OWNER) != IntPtr.Zero ||
+                    width >= screenWidth / 2 ||
+                    height >= screenHeight / 2)
+                    return true;
+            }
+            else
+            {
+                // Firefox uses a separate popup window; keep its popup/shape heuristic.
+                long style = Native.GetWindowLongPtr(hwnd, Native.GWL_STYLE).ToInt64();
+                if ((style & Native.WS_POPUP) == 0 || (style & Native.WS_CHILD) != 0)
+                    return true;
+
+                double ratio = (double)width / height;
+                if (ratio < 1.15 || ratio > 2.6) return true;
+            }
 
             string title = Native.GetWindowTitle(hwnd);
-            // Prefer a video-like landscape popup belonging to one of the supported browsers.
-            double ratio = (double)width / height;
-            if (ratio < 1.15 || ratio > 2.6) return true;
-
             candidates.Add((hwnd, width * height, title));
             return true;
         }, IntPtr.Zero);
 
+        // Prefer the smallest matching video window to avoid selecting the browser itself.
         return candidates.OrderBy(c => c.Area).Select(c => c.Hwnd).FirstOrDefault();
     }
 
@@ -316,6 +337,10 @@ internal static class Native
     public const long WS_CHILD = 0x40000000L;
     public const long WS_EX_TRANSPARENT = 0x00000020L;
     public const long WS_EX_LAYERED = 0x00080000L;
+    public const long WS_EX_TOPMOST = 0x00000008L;
+    public const int GW_OWNER = 4;
+    public const int SM_CXSCREEN = 0;
+    public const int SM_CYSCREEN = 1;
     public const uint LWA_ALPHA = 0x2;
     public const uint MOD_ALT = 0x0001;
     public const uint MOD_CONTROL = 0x0002;
@@ -335,6 +360,18 @@ internal static class Native
     public static extern bool IsWindow(IntPtr hWnd);
     [DllImport("user32.dll")]
     public static extern bool IsWindowVisible(IntPtr hWnd);
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
+    [DllImport("user32.dll")]
+    public static extern int GetSystemMetrics(int nIndex);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetClassName(IntPtr hWnd, StringBuilder className, int maxCount);
+    public static string GetWindowClassName(IntPtr hWnd)
+    {
+        var className = new StringBuilder(256);
+        GetClassName(hWnd, className, className.Capacity);
+        return className.ToString();
+    }
     [DllImport("user32.dll", SetLastError = true)]
     public static extern IntPtr GetWindowLongPtr(IntPtr hWnd, int nIndex);
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW", SetLastError = true)]
