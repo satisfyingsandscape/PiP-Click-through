@@ -68,12 +68,12 @@ jobs:
         with:
           script: |
             const message = context.payload.head_commit.message;
-            const match = message.match(/^release:\\s*(v\\d+\\.\\d+\\.\\d+)/);
-            if (!match) {
+            const tag = message.substring(message.indexOf(':') + 1).trim();
+            if (!/^v[0-9]+[.][0-9]+[.][0-9]+$/.test(tag)) {
               core.setFailed('Release commit message must look like: release: v0.2.2');
               return;
             }
-            core.setOutput('tag', match[1]);
+            core.setOutput('tag', tag);
 
       - name: Publish GitHub Release
         if: github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'release:')
