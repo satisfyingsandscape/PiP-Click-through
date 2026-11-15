@@ -334,18 +334,27 @@ internal sealed class TrayApp : IDisposable
             }
             else
             {
-                // Firefox PiP is a dedicated, always-on-top browser window.
-                // Unlike Chromium, it does not consistently expose WS_POPUP on Windows.
+                // Firefox's actual PiP player is MozillaDialogClass, titled
+                // "Picture-in-Picture", and is marked as topmost on this system.
+                // The main Firefox browser window uses MozillaWindowClass instead.
                 long firefoxExStyle = Native.GetWindowLongPtr(hwnd, Native.GWL_EXSTYLE).ToInt64();
                 string firefoxClass = Native.GetWindowClassName(hwnd);
                 bool isTopmost = (firefoxExStyle & Native.WS_EX_TOPMOST) != 0;
-                bool hasOwner = Native.GetWindow(hwnd, Native.GW_OWNER) != IntPtr.Zero;
+                string firefoxTitle = Native.GetWindowTitle(hwnd);
 
-                // Firefox's PiP is a separate owned browser window. Windows versions
-                // and Firefox builds may differ in whether TOPMOST is exposed through
-                // the extended style, so accept an owned Mozilla window as a fallback.
-                if (!firefoxClass.Equals("MozillaWindowClass", StringComparison.Ordinal) ||
-                    (!isTopmost && !hasOwner))
+                bool isFirefoxPipDialog =
+                    firefoxClass.Equals("MozillaDialogClass", StringComparison.Ordinal) &&
+                    firefoxTitle.Equals("Picture-in-Picture", StringComparison.OrdinalIgnoreCase) &&
+                    isTopmost;
+
+                // Keep a conservative fallback for Firefox builds that expose the
+                // player with the older MozillaWindowClass window type.
+                bool isLegacyFirefoxPip =
+                    firefoxClass.Equals("MozillaWindowClass", StringComparison.Ordinal) &&
+                    isTopmost &&
+                    Native.GetWindow(hwnd, Native.GW_OWNER) != IntPtr.Zero;
+
+                if (!isFirefoxPipDialog && !isLegacyFirefoxPip)
                     return true;
 
                 if (width > 3000 || height > 2000) return true;
@@ -355,7 +364,7 @@ internal sealed class TrayApp : IDisposable
 
             string title = Native.GetWindowTitle(hwnd);
             int priority = isFirefox
-                ? (((Native.GetWindowLongPtr(hwnd, Native.GWL_EXSTYLE).ToInt64() & Native.WS_EX_TOPMOST) != 0) ? 0 : 2)
+                ? (Native.GetWindowClassName(hwnd).Equals("MozillaDialogClass", StringComparison.Ordinal) ? 0 : 1)
                 : 0;
             candidates.Add((hwnd, width * height, title, priority));
             return true;
