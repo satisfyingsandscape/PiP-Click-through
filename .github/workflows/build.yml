@@ -23,6 +23,12 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
+      - name: Prepare application icon
+        shell: pwsh
+        run: |
+          $icon = [Convert]::FromBase64String((Get-Content .\assets\app-icon.b64 -Raw).Trim())
+          [IO.File]::WriteAllBytes(".\PiPClickThrough\app.ico", $icon)
+
       - name: Publish self-contained executable
         shell: pwsh
         run: |
