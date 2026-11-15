@@ -1,6 +1,6 @@
 # PiP Click-through
 
-A lightweight Windows system-tray utility that makes Opera's Picture-in-Picture (PiP) window click-through, allowing mouse input to reach the window underneath it.
+A lightweight Windows system-tray utility that makes Picture-in-Picture (PiP) windows in Opera, Chrome, and Firefox click-through, allowing mouse input to reach the window underneath it.
 
 ## Download and run
 
@@ -17,7 +17,7 @@ A lightweight Windows system-tray utility that makes Opera's Picture-in-Picture 
 - Global keyboard shortcut: `Ctrl + Alt + P`
 - System-tray menu:
   - Enable or disable click-through
-  - Find the Opera PiP window
+  - Find a supported browser PiP window
   - Restore mouse input
   - Start with Windows
   - Exit
@@ -27,18 +27,18 @@ When click-through is enabled, the application adds the `WS_EX_LAYERED` and `WS_
 
 ## How to use
 
-1. Open a video in Opera and detach it into Picture-in-Picture mode.
+1. Open a video in Opera, Google Chrome, or Mozilla Firefox and detach it into Picture-in-Picture mode.
 2. Run `PiPClickThrough.exe`.
 3. Right-click the application icon in the Windows notification area and select **Find PiP window**.
 4. Select **Enable click-through**.
 5. Test it on the desktop or over a harmless window first. Then try it over your game in borderless-windowed mode.
 6. To restore mouse input, press `Ctrl + Alt + P` or select **Restore mouse input** from the tray menu.
 
-If the PiP window is not detected, do not force the application to target another window. Exit the application and report the PiP window title and your Opera version.
+If the PiP window is not detected, do not force the application to target another window. Exit the application and report the PiP window title and your browser name and version.
 
 ## Important: experimental behavior
 
-The behavior of Chromium/Opera PiP windows can vary between browser and Windows versions. Automatic detection currently checks for a visible Opera or Opera GX popup window with video-like dimensions and a landscape aspect ratio. If Opera changes its PiP window structure, detection may need to be updated.
+The behavior of Chromium/browser PiP windows can vary between browser and Windows versions. Automatic detection currently checks for a visible Opera or Opera GX popup window with video-like dimensions and a landscape aspect ratio. If a browser changes its PiP window structure, detection may need to be updated. Detection is based on the browser process, popup-window style, and video-like dimensions; unusual browser popups may still require refinement.
 
 Adding `WS_EX_LAYERED` to a window owned by another process is not guaranteed to work identically on every Windows version or browser build. If the video disappears, flickers, or mouse clicks do not pass through, disable click-through from the tray menu or exit the application. The application attempts to restore the original window style when click-through is disabled or the application exits normally.
 
