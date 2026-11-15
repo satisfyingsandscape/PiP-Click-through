@@ -26,7 +26,7 @@ PiP detection is experimental. The utility looks for a visible popup window owne
 - Keep the PiP window always on top.
 - Toggle click-through with `Ctrl + Alt + P`.
 - Control the app from the Windows notification-area (system tray) icon.
-- Restore normal mouse input or exit from the tray menu.
+- Restore normal mouse input, restart, or exit from the tray menu.
 - Optionally start the app with Windows.
 
 The app does not capture, crop, or modify the video.
@@ -37,6 +37,7 @@ The app does not capture, crop, or modify the video.
 2. Run `PiPClickThrough.exe`.
 3. Right-click its icon in the notification area and choose **Find PiP window**.
 4. Choose **Enable click-through**.
+5. Use **Restart** in the tray menu to relaunch the app, or **Exit** to close it.
 5. Press `Ctrl + Alt + P` or choose **Restore mouse input** to turn click-through off again.
 
 If the wrong window is detected, or the video flickers or disappears, disable click-through and report the browser and its version.
