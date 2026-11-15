@@ -225,8 +225,8 @@ internal sealed class TrayApp : IDisposable
                 if (!className.Equals("Chrome_WidgetWin_1", StringComparison.Ordinal) ||
                     (exStyle & Native.WS_EX_TOPMOST) == 0 ||
                     Native.GetWindow(hwnd, Native.GW_OWNER) != IntPtr.Zero ||
-                    width >= screenWidth / 2 ||
-                    height >= screenHeight / 2)
+                    width >= screenWidth * 3 / 4 ||
+                    height >= screenHeight * 3 / 4)
                     return true;
             }
             else
