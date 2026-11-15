@@ -98,7 +98,7 @@ internal sealed class TrayApp : IDisposable
         }
 
         if (!Native.IsWindow(_target))
-            _target = FindBrowserPipWindow();
+            _target = FindOperaPipWindow();
 
         if (_target == IntPtr.Zero)
         {
