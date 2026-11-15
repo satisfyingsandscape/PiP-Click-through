@@ -92,12 +92,12 @@ internal sealed class TrayApp : IDisposable
         }
 
         if (!Native.IsWindow(_target))
-            _target = FindOperaPipWindow();
+            _target = FindBrowserPipWindow();
 
         if (_target == IntPtr.Zero)
         {
             _tray.ShowBalloonTip(3500, "PiP window not found",
-                "Open a video in Picture-in-Picture mode in Opera, then try again.",
+                "Open a video in Picture-in-Picture mode in Opera, Chrome, or Firefox, then try again.",
                 ToolTipIcon.Info);
             UpdateMenu();
             return;
@@ -168,7 +168,7 @@ internal sealed class TrayApp : IDisposable
         if (_target == IntPtr.Zero)
         {
             _tray.ShowBalloonTip(3000, "No PiP window detected",
-                "Make sure a video is open in Picture-in-Picture mode in Opera.", ToolTipIcon.Info);
+                "Make sure a video is open in Picture-in-Picture mode in Opera, Chrome, or Firefox.", ToolTipIcon.Info);
         }
         else
         {
@@ -191,8 +191,12 @@ internal sealed class TrayApp : IDisposable
             {
                 using var process = Process.GetProcessById((int)pid);
                 string name = process.ProcessName;
+                // The top-level PiP window belongs to the browser process in these browsers.
+                // Keep this list explicit so unrelated applications are never targeted.
                 if (!name.Equals("opera", StringComparison.OrdinalIgnoreCase) &&
-                    !name.Equals("opera_gx", StringComparison.OrdinalIgnoreCase))
+                    !name.Equals("opera_gx", StringComparison.OrdinalIgnoreCase) &&
+                    !name.Equals("chrome", StringComparison.OrdinalIgnoreCase) &&
+                    !name.Equals("firefox", StringComparison.OrdinalIgnoreCase))
                     return true;
             }
             catch { return true; }
@@ -203,11 +207,11 @@ internal sealed class TrayApp : IDisposable
             if (width < 220 || height < 120 || width > 1800 || height > 1100) return true;
 
             long style = Native.GetWindowLongPtr(hwnd, Native.GWL_STYLE).ToInt64();
-            // Chromium PiP windows are normally popup windows; the main Opera browser is an overlapped window.
+            // Browser PiP windows are popup windows; the main browser window is normally overlapped.
             if ((style & Native.WS_POPUP) == 0 || (style & Native.WS_CHILD) != 0) return true;
 
             string title = Native.GetWindowTitle(hwnd);
-            // Prefer a video-like landscape window over any other Opera popup.
+            // Prefer a video-like landscape popup belonging to one of the supported browsers.
             double ratio = (double)width / height;
             if (ratio < 1.15 || ratio > 2.6) return true;
 
