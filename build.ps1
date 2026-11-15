@@ -4,6 +4,9 @@ $project = Join-Path $PSScriptRoot "PiPClickThrough\PiPClickThrough.csproj"
 $publish = Join-Path $PSScriptRoot "publish"
 $dist = Join-Path $PSScriptRoot "dist"
 $zip = Join-Path $dist "PiPClickThrough-win-x64.zip"
+$iconSource = Join-Path $PSScriptRoot "assets\app-icon.b64"
+$iconFile = Join-Path $PSScriptRoot "PiPClickThrough\app.ico"
+[IO.File]::WriteAllBytes($iconFile, [Convert]::FromBase64String((Get-Content $iconSource -Raw).Trim()))
 
 if (Test-Path $publish) { Remove-Item $publish -Recurse -Force }
 if (Test-Path $dist) { Remove-Item $dist -Recurse -Force }
